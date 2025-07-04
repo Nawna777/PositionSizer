@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick Maths</title>
+    <!-- Tailwind CSS CDN for utility classes -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts - Inter for a modern, clean look -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* Apply Inter font family globally */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom focus style for input fields using Tailwind's ring utilities */
+        input:focus {
+            outline: 2px solid transparent; /* Hide default outline */
+            outline-offset: 2px; /* Offset for the ring */
+            --tw-ring-color: #22d3ee; /* Cyan ring color */
+            /* Tailwind's shadow variables for ring effect */
+            --tw-ring-offset-shadow: var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);
+            --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color);
+            box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000);
+            border-color: #22d3ee; /* Cyan border on focus */
+        }
+        /* Style for disabled input groups, making them appear faded and non-interactive */
+        .input-group.disabled {
+            @apply opacity-40 pointer-events-none;
+        }
+        /* Transition for input groups when enabling/disabling */
+        .input-group {
+            @apply transition-opacity duration-300;
+        }
+    </style>
+</head>
+<body class="bg-gray-950 flex items-center justify-center min-h-screen p-4">
+
+    <div class="bg-gray-800 shadow-2xl rounded-2xl p-6 sm:p-8 w-full max-w-md">
+        
+        <!-- Header Section -->
+        <h1 class="text-2xl sm:text-3xl font-bold text-center mb-4 text-white">Quick Maths</h1>
+
+        <!-- Calculator Type Label (since only one type remains) -->
+        <div class="flex justify-center mb-4">
+            <span class="px-4 py-2 text-lg font-bold text-cyan-400 bg-gray-700 border border-cyan-600 rounded-md shadow-sm">Position Sizer</span>
+        </div>
+
+        <!-- Instrument Toggle Switch (MNQ/MES) - Moved below Position Sizer -->
+        <div class="flex items-center justify-center mb-6 space-x-4 text-lg font-bold">
+            <!-- Label for MNQ, initially cyan -->
+            <span id="label-mnq" class="text-cyan-400 transition-colors duration-300">MNQ</span>
+            <!-- Toggle switch input -->
+            <label for="instrumentToggle" class="relative inline-flex items-center cursor-pointer">
+                <!-- MNQ is unchecked by default, so the toggle is on the left initially -->
+                <input type="checkbox" id="instrumentToggle" class="sr-only peer" onchange="toggleInstrument()">
+                <!-- Visual representation of the toggle switch -->
+                <div class="w-14 h-7 bg-gray-700 rounded-full peer peer-focus:ring-2 peer-focus:ring-cyan-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:border-gray-600 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-cyan-600"></div>
+            </label>
+            <!-- Label for MES, initially gray -->
+            <span id="label-mes" class="text-gray-400 transition-colors duration-300">MES</span>
+        </div>
+
+        <!-- Input Fields Section -->
+        <div class="space-y-4">
+            <!-- Risk Amount Input -->
+            <div id="riskAmountGroup" class="input-group">
+                <label for="riskAmount" class="block text-sm font-medium text-gray-300">How much do you want to risk?</label>
+                <div class="mt-1 relative rounded-md shadow-sm">
+                    <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3"><span class="text-gray-400 sm:text-sm">$</span></div>
+                    <input type="number" id="riskAmount" class="block w-full rounded-md border-gray-600 bg-gray-700 text-white pl-7 pr-4 py-3 text-lg placeholder-gray-400" placeholder="100.00">
+                </div>
+            </div>
+            <!-- Stop Loss Input -->
+            <div id="stopLossGroup" class="input-group">
+                <label for="stopLoss" class="block text-sm font-medium text-gray-300">Stoploss (in points)</label>
+                <input type="number" id="stopLoss" class="mt-1 block w-full rounded-md border-gray-600 bg-gray-700 text-white shadow-sm py-3 px-4 text-lg placeholder-gray-400" placeholder="10">
+            </div>
+        </div>
+
+        <!-- Single Calculate Button -->
+        <div class="mt-8">
+            <button onclick="performCalculation()" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-lg font-medium text-white bg-cyan-600 hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-600 transition-all duration-200 ease-in-out transform active:scale-95">
+                Calculate
+            </button>
+        </div>
+        
+        <!-- Result Display Area (initially hidden) -->
+        <div id="result" class="mt-6 bg-gray-700 p-4 rounded-lg hidden"></div>
+
+    </div>
+
+    <script>
+        // --- STATE MANAGEMENT ---
+        // Keeps track of the currently selected instrument ('MNQ' or 'MES')
+        // Initialized to MNQ as it's now on the left and unchecked by default.
+        let currentInstrument = 'MNQ';
+
+        // --- CONSTANTS ---
+        // Defines the point values for each instrument. MNQ is $2/point, MES is $5/point.
+        const POINT_VALUES = { MNQ: 2, MES: 5 };
+
+        // --- DOM ELEMENTS ---
+        // Get references to all necessary HTML elements by their IDs
+        const resultEl = document.getElementById('result');
+        const labelMnq = document.getElementById('label-mnq');
+        const labelMes = document.getElementById('label-mes');
+        const instrumentToggle = document.getElementById('instrumentToggle');
+
+        /**
+         * Handles the MNQ/MES instrument toggle switch.
+         * Updates the `currentInstrument` state and applies active/inactive styles to labels.
+         */
+        function toggleInstrument() {
+            resultEl.classList.add('hidden'); // Hide any previous result when switching instruments
+
+            // If the toggle is checked, MES is selected (as it's on the right)
+            if (instrumentToggle.checked) { 
+                currentInstrument = 'MES';
+                labelMes.classList.add('text-cyan-400'); // Highlight MES label
+                labelMes.classList.remove('text-gray-400');
+                labelMnq.classList.add('text-gray-400'); // De-highlight MNQ label
+                labelMnq.classList.remove('text-cyan-400');
+            } else { // If the toggle is unchecked, MNQ is selected (as it's on the left)
+                currentInstrument = 'MNQ';
+                labelMnq.classList.add('text-cyan-400'); // Highlight MNQ label
+                labelMnq.classList.remove('text-gray-400');
+                labelMes.classList.add('text-gray-400'); // De-highlight MES label
+                labelMes.classList.remove('text-cyan-400');
+            }
+        }
+
+        /**
+         * Main function called by the "Calculate" button.
+         * Directly calls `calculatePositionSize` as it's the only calculation.
+         */
+        function performCalculation() {
+            const pointValue = POINT_VALUES[currentInstrument]; // Get the point value for the selected instrument
+            calculatePositionSize(pointValue); // Call position size calculation
+        }
+
+        /**
+         * Calculates the recommended position size based on risk amount, stop loss, and instrument point value.
+         * Displays the result, including min/max contracts and the mathematical formula, or an error message.
+         * @param {number} pointValue - The dollar value per point for the current instrument.
+         */
+        function calculatePositionSize(pointValue) {
+            const riskAmount = parseFloat(document.getElementById('riskAmount').value);
+            const stopLoss = parseFloat(document.getElementById('stopLoss').value);
+
+            // Input validation
+            if (isNaN(riskAmount) || isNaN(stopLoss)) {
+                showError("Please enter valid numbers for risk and stoploss.");
+                return;
+            }
+            if (riskAmount <= 0 || stopLoss <= 0) {
+                showError("Risk and stoploss values must be greater than zero.");
+                return;
+            }
+
+            // Calculate the exact position size
+            const exactPositionSize = riskAmount / (stopLoss * pointValue);
+            
+            // Calculate minimum contracts (rounded down, but at least 1)
+            let minContracts = Math.floor(exactPositionSize);
+            if (minContracts === 0 && exactPositionSize > 0) {
+                minContracts = 1; // Ensure at least 1 contract if the calculation is positive but less than 1
+            }
+
+            // Calculate maximum contracts (rounded up)
+            const maxContracts = Math.ceil(exactPositionSize);
+
+            // Calculate the actual dollar risk for min and max contracts
+            const riskForMinContracts = minContracts * stopLoss * pointValue;
+            const riskForMaxContracts = maxContracts * stopLoss * pointValue;
+
+            // Display the result including the range and the risk amounts
+            showResult(
+                `Recommended Position Size (${currentInstrument}):`,
+                `${exactPositionSize.toFixed(2)} contracts`,
+                `Min: ${minContracts} contracts ($${riskForMinContracts.toFixed(2)} risked)`,
+                `Max: ${maxContracts} contracts ($${riskForMaxContracts.toFixed(2)} risked)`
+            );
+        }
+
+        /**
+         * Displays an error message in the result area.
+         * @param {string} message - The error message to display.
+         */
+        function showError(message) {
+            resultEl.innerHTML = `<div class="text-red-400 text-center font-medium">${message}</div>`;
+            resultEl.classList.remove('hidden'); // Make sure the result area is visible
+        }
+
+        /**
+         * Displays a formatted result in the result area.
+         * @param {string} title - The main title for the result (e.g., "Recommended Position Size").
+         * @param {string} mainResult - The primary result value (e.g., "2.50 contracts"). Can contain HTML for styling.
+         * @param {string} [minContractInfo=''] - Information about the minimum contract count and its risk.
+         * @param {string} [maxContractInfo=''] - Information about the maximum contract count and its risk.
+         */
+        function showResult(title, mainResult, minContractInfo = '', maxContractInfo = '') {
+            let contractInfoHTML = '';
+            if (minContractInfo || maxContractInfo) {
+                contractInfoHTML = `
+                    <div class="text-base text-gray-300 text-center mt-2">${minContractInfo}</div>
+                    <div class="text-base text-gray-300 text-center">${maxContractInfo}</div>
+                `;
+            }
+            
+            resultEl.innerHTML = `
+                <div class="text-sm text-gray-400 text-center">${title}</div>
+                <div class="text-3xl text-white font-bold text-center mt-1">${mainResult}</div>
+                ${contractInfoHTML}
+            `;
+            resultEl.classList.remove('hidden'); // Make sure the result area is visible
+        }
+
+        // Initialize the UI on page load.
+        // This ensures the correct instrument is set up initially.
+        window.onload = () => {
+            // Ensure the toggle reflects MNQ as default (unchecked)
+            instrumentToggle.checked = false; 
+            toggleInstrument(); 
+        };
+    </script>
+
+</body>
+</html>
